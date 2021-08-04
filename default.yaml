@@ -1,0 +1,18 @@
+name: Default
+graph_model:
+  arch:
+    hid_sz: 100
+    p: 1
+  train_conf:
+    batch_sz: 64
+    epoch_num: 100
+    print_interval: 300
+pred_model:
+  arch:
+    dropout: 0.5
+    emb_sz: 256
+    hid_sz: 256
+  train_conf:
+    batch_sz: 32
+    epoch_num: 1
+    print_interval: 100
