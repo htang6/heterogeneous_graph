@@ -61,7 +61,8 @@ class SynoPred(nn.Module):
         count = 0
         for result in result_list:
              for target, score in zip(*result):
-                mrr, mr, hit = mrr_mr_hitk(score, target)
+                # Since higher score means higher rank here, so we need to pass in True
+                mrr, mr, hit = mrr_mr_hitk(score, target, descend=True)
                 mrr_tot += mrr
                 mr_tot += mr
                 hit_tot += hit

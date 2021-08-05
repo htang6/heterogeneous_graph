@@ -7,8 +7,9 @@ import numpy as np
 from graph import HeteroGraph
 from data_process import parse_block
 
-def mrr_mr_hitk(scores, target, k=[1,3,10]):
-    _, sorted_idx = torch.sort(scores)
+# Here the scores actually means distance, the smaller is regarded higher ranked.
+def mrr_mr_hitk(scores, target, k=[1,3,10], descend = False):
+    _, sorted_idx = torch.sort(scores, descending=descend)
     find_target = sorted_idx == target
     target_rank = torch.nonzero(find_target)[0, 0] + 1
     hits = np.zeros((len(k),))
