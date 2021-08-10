@@ -3,9 +3,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from utils import mrr_mr_hitk
+from .trainable import Trainable
 
 
-class TransEModule(nn.Module):
+class TransEModule(Trainable):
     '''copy from NSCachine code'''
     def __init__(self, n_ent, n_rela, sampler, corrupter, filter_data, args):
         super(TransEModule, self).__init__()

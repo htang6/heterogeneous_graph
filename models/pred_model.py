@@ -5,8 +5,9 @@ from torch._C import dtype
 from transformers.models import bert
 
 from utils import mrr_mr_hitk
+from .trainable import Trainable
 
-class SynoPred(nn.Module):
+class SynoPred(Trainable):
     def __init__(self, c_emb, bert, sampler, **args) -> None:
         super().__init__()
         self.c_emb = c_emb
