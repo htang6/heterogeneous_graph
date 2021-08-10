@@ -81,8 +81,15 @@ class TransEModule(nn.Module):
         loss = p_loss + n_loss
         return loss
 
-    # should return a dictionary of metrics 
-    def eval_step(self, idx, batch):
+    # Here we assume the first column is head, the second is relationship, the third is tail
+    def eval_step(self, idx, batch, filt=True):
+        mrr_tot = 0.
+        mr_tot = 0
+        hit_tot = np.zeros((3,))
+        count = 0
+        heads = self.filter_data[0]
+        tails = self.filter_data[1]
+
         n_ent = self.ent_emb.weight.shape[0]
         batch_h = batch[:,0]
         batch_r = batch[:,1]
@@ -97,41 +104,50 @@ class TransEModule(nn.Module):
 
         batch_head_scores = self.score(all_val, tail_val, rela_val).data
         batch_tail_scores = self.score(head_val, all_val, rela_val).data
+        for h, t, r, head_score, tail_score in zip(batch_h, batch_t, batch_r, batch_head_scores, batch_tail_scores):
+            h_idx = int(h.data.cpu().numpy())
+            t_idx = int(t.data.cpu().numpy())
+            r_idx = int(r.data.cpu().numpy())
+            if filt:
+                # filter out triplets that are valid and may be precede the target triplet
+                # by setting a very large score, smaller means more true
+                if tails[(h_idx,r_idx)]._nnz() > 1:
+                    tmp = tail_score[t_idx].data.cpu().numpy()
+                    idx = tails[(h_idx, r_idx)]._indices()
+                    tail_score[idx] = 1e20
+                    tail_score[t_idx] = torch.from_numpy(tmp)
+                if heads[(t_idx, r_idx)]._nnz() > 1:
+                    tmp = head_score[h_idx].data.cpu().numpy()
+                    idx = heads[(t_idx, r_idx)]._indices()
+                    head_score[idx] = 1e20
+                    head_score[h_idx] = torch.from_numpy(tmp)
+            mrr, mr, hit = mrr_mr_hitk(tail_score, t_idx)
+            mrr_tot += mrr
+            mr_tot += mr
+            hit_tot += hit
+            mrr, mr, hit = mrr_mr_hitk(head_score, h_idx)
+            mrr_tot += mrr
+            mr_tot += mr
+            hit_tot += hit
+            count += 2
 
-        return (batch_h, batch_t, batch_r, batch_head_scores, batch_tail_scores)
+        return {'mrr':float(mrr_tot),
+                'mr':mr_tot,
+                'hit':hit_tot,
+                'count':count
+                }
 
-    def eval_sum(self, result_list, filt=True):
+    def eval_sum(self, result_list):
         mrr_tot = 0.
         mr_tot = 0
         hit_tot = np.zeros((3,))
         count = 0
-        heads = self.filter_data[0]
-        tails = self.filter_data[1]
         for result in result_list:
-            for h, t, r, head_score, tail_score in zip(*result):
-                h_idx = int(h.data.cpu().numpy())
-                t_idx = int(t.data.cpu().numpy())
-                r_idx = int(r.data.cpu().numpy())
-                if filt:            # filtered setting
-                    if tails[(h_idx,r_idx)]._nnz() > 1:
-                        tmp = tail_score[t_idx].data.cpu().numpy()
-                        idx = tails[(h_idx, r_idx)]._indices()
-                        tail_score[idx] = 1e20
-                        tail_score[t_idx] = torch.from_numpy(tmp)
-                    if heads[(t_idx, r_idx)]._nnz() > 1:
-                        tmp = head_score[h_idx].data.cpu().numpy()
-                        idx = heads[(t_idx, r_idx)]._indices()
-                        head_score[idx] = 1e20
-                        head_score[h_idx] = torch.from_numpy(tmp)
-                mrr, mr, hit = mrr_mr_hitk(tail_score, t_idx)
-                mrr_tot += mrr
-                mr_tot += mr
-                hit_tot += hit
-                mrr, mr, hit = mrr_mr_hitk(head_score, h_idx)
-                mrr_tot += mrr
-                mr_tot += mr
-                hit_tot += hit
-                count += 2
+            mrr_tot += result['mrr']
+            mr_tot += result['mr']
+            hit_tot += result['hit']
+            count += result['count']
+            
         return {'mrr':float(mrr_tot)/count,
                 'mr':mr_tot/count,
                 'hit@1':hit_tot[0]/count,
