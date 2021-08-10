@@ -45,6 +45,8 @@ def split_idx(num_nodes, test_split = 5, val_split = 10):
 
 # Please test this funciton
 def heads_tails(conn_list, n_ent):
+    if torch.is_tensor(conn_list):
+        conn_list = conn_list.data.cpu().numpy()
     all_heads = [conn[0] for conn in conn_list]
     all_relas = [conn[1] for conn in conn_list]
     all_tails = [conn[2] for conn in conn_list]
