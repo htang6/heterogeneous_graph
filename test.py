@@ -29,7 +29,7 @@ def dummy_graph():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Parser for Knowledge Graph Embedding")
-    parser.add_argument('--config', type=str, default='default.yaml', help='name of config file')
+    parser.add_argument('--config', type=str, default='config/shallow_test.yaml', help='name of config file')
     args = parser.parse_args()
 
     with open(args.config, 'r') as f:
@@ -56,12 +56,12 @@ if __name__ == '__main__':
 
     occurrence = heads_tails(all_data, n_ent)
     transE = TransEModule(n_ent, n_rela, sampler, corrupter, \
-    occurrence, config['graph_model']['arch'])
+    occurrence, config['arch'])
 
     train_dl = DataLoader(train_data, batch_size=4096)
-    eval_dl = DataLoader(val_data, batch_size=50)
+    eval_dl = DataLoader(val_data, batch_size=128)
 
-    trainer = Trainer(transE, config['graph_model']['train_conf'], device=device, logger=logger)
+    trainer = Trainer(transE, config['train_conf'], device=device, logger=logger)
     trainer.fit(train_dl, eval_dl, 0.001) 
 
     torch.save(transE.ent_emb.weight, './results/c_emb.pt')

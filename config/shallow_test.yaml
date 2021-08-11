@@ -1,0 +1,8 @@
+name: Shallow Model Test Config
+arch:
+  hid_sz: 100
+  p: 1
+train_conf:
+  batch_sz: 64
+  epoch_num: 100
+  print_interval: 50

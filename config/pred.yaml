@@ -1,0 +1,9 @@
+name: Prediction Model Config
+arch:
+  dropout: 0.5
+  emb_sz: 256
+  hid_sz: 256
+train_conf:
+  batch_sz: 32
+  epoch_num: 1
+  print_interval: 100

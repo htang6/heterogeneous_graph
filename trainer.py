@@ -10,6 +10,7 @@ class Trainer():
         self.logger = logger
 
     def fit(self, train_dl, eval_dl, lr):
+        self.logger.info('Start training...')
         optimizer = torch.optim.Adam(self.model.parameters(), lr=lr)
         self.model.zero_grad()
         self.model.train()
@@ -24,6 +25,7 @@ class Trainer():
                 self.model.zero_grad()
                 loss.backward()
                 optimizer.step()
+        self.logger.info('End training...')
 
     def eval(self, eval_dl):
         eval_list = []

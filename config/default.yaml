@@ -6,7 +6,7 @@ graph_model:
   train_conf:
     batch_sz: 64
     epoch_num: 100
-    print_interval: 300
+    print_interval: 50
 pred_model:
   arch:
     dropout: 0.5

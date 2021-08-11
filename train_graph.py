@@ -23,7 +23,7 @@ from utils import split_idx, heads_tails, get_logger, load_data, build_graph, ge
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Parser for Knowledge Graph Embedding")
-    parser.add_argument('--config', type=str, default='default.yaml', help='name of config file')
+    parser.add_argument('--config', type=str, default='config/shallow.yaml', help='name of config file')
     args = parser.parse_args()
 
     with open(args.config, 'r') as f:
@@ -41,27 +41,26 @@ if __name__ == '__main__':
     graph = build_graph(clist)
 
     sampler = TriRandomSampler(len(graph.nodes), 2)
+
     connects = torch.LongTensor(graph.connects)
-
-    head = connects[:,0]
-    rela = connects[:,1]
-    tail = connects[:,2]
-
-    corrupter = BernCorrupter([head, tail, rela], len(graph.nodes), len(graph.edges))
-
-    occurrence = heads_tails(graph.connects, len(graph.nodes))
-    transE = TransEModule(len(graph.nodes), len(graph.edges), sampler, corrupter, \
-    occurrence, config['graph_model']['arch'])
-
     train_idx, eval_idx, test_idx = split_idx(connects.shape[0])
     train_data = connects[train_idx]
     eval_data = connects[eval_idx]
     test_data = connects[test_idx]
 
-    train_dl = DataLoader(train_data, batch_size=32)
-    eval_dl = DataLoader(eval_data, batch_size=32)
+    head = train_data[:,0]
+    rela = train_data[:,1]
+    tail = train_data[:,2]
+    corrupter = BernCorrupter([head, tail, rela], len(graph.nodes), len(graph.edges))
 
-    trainer = Trainer(transE, config['graph_model']['train_conf'], device=device, logger=logger)
+    occurrence = heads_tails(graph.connects, len(graph.nodes))
+    transE = TransEModule(len(graph.nodes), len(graph.edges), sampler, corrupter, \
+    occurrence, config['arch'])
+
+    train_dl = DataLoader(train_data, batch_size=256)
+    eval_dl = DataLoader(eval_data, batch_size=50)
+
+    trainer = Trainer(transE, config['train_conf'], device=device, logger=logger)
     trainer.fit(train_dl, eval_dl, 0.001)
 
     torch.save(transE.ent_emb.weight, './results/c_emb.pt')
