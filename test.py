@@ -12,7 +12,7 @@ import yaml
 from bern_corrupter import BernCorrupter
 from graph import HeteroGraph
 from data_process import parse_block
-from models import TransEModule, BertEmb, SynoPred
+from models import TransEModule, BertEmb, SynoPred, ComplExModule, ShallowModule
 from samplers import TriRandomSampler, PairRandomSampler
 from trainer import Trainer
 from utils import split_idx, heads_tails, get_logger, load_data, build_graph, get_data
@@ -30,6 +30,7 @@ def dummy_graph():
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Parser for Knowledge Graph Embedding")
     parser.add_argument('--config', type=str, default='config/shallow_test.yaml', help='name of config file')
+    parser.add_argument('--model', type=str, default='ComplEx')
     args = parser.parse_args()
 
     with open(args.config, 'r') as f:
@@ -55,13 +56,17 @@ if __name__ == '__main__':
     corrupter = BernCorrupter([head, tail, rela], n_ent, n_rela)
 
     occurrence = heads_tails(all_data, n_ent)
-    transE = TransEModule(n_ent, n_rela, sampler, corrupter, \
-    occurrence, config['arch'])
+    if args.model == 'TransE':
+        model = TransEModule(n_ent, n_rela, sampler, corrupter, \
+        occurrence, config['arch'])
+    elif args.model == 'ComplEx':
+        enb_model = ComplExModule(n_ent, n_rela, config['arch'])
+        model = ShallowModule(n_ent, enb_model, sampler, corrupter, occurrence)
 
     train_dl = DataLoader(train_data, batch_size=4096)
     eval_dl = DataLoader(val_data, batch_size=128)
 
-    trainer = Trainer(transE, config['train_conf'], device=device, logger=logger)
+    trainer = Trainer(model, config['train_conf'], device=device, logger=logger)
     trainer.fit(train_dl, eval_dl, 0.001) 
 
-    torch.save(transE.ent_emb.weight, './results/c_emb.pt')
+    # torch.save(model.ent_emb.weight, './results/c_emb.pt')

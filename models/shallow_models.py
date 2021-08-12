@@ -6,50 +6,14 @@ from utils import mrr_mr_hitk
 from .trainable import Trainable
 
 
-class TransEModule(Trainable):
-    '''copy from NSCachine code'''
-    def __init__(self, n_ent, n_rela, sampler, corrupter, filter_data, args):
-        super(TransEModule, self).__init__()
-        self.ent_emb = nn.Embedding(n_ent, args['hid_sz'])
-        self.rela_emb = nn.Embedding(n_rela, args['hid_sz'])
+class ShallowModule(Trainable):
+    def __init__(self, n_ent, model, sampler, corrupter, filter_data) -> None:
+        super().__init__()
+        self.model = model
         self.sampler = sampler
-        self.init_weight()
         self.corrupter = corrupter
-        self.p = args['p']
-
         self.filter_data = filter_data
-
-    def forward(self, head, tail, rela):
-        shape = head.size()
-        head = head.contiguous().view(-1)
-        tail = tail.contiguous().view(-1)
-        rela = rela.contiguous().view(-1)
-        head_embed = F.normalize(self.ent_emb(head),2,-1)
-        tail_embed = F.normalize(self.ent_emb(tail),2,-1)
-        rela_embed = self.rela_emb(rela)
-        return torch.norm(tail_embed - head_embed - rela_embed, p=self.p, dim=-1).view(shape)
-
-    def dist(self, head, tail, rela):
-        return self.forward(head, tail, rela)
-
-    def score(self, head, tail, rela):
-        return self.forward(head, tail, rela)
-
-    def prob_logit(self, head, tail, rela):
-        return -self.forward(head, tail, rela) / self.temp
-
-    def embed(self, idx):
-        return self.ent_emb(idx)
-
-    def point_loss(self, head, tail, rela, label):
-        softplus = torch.nn.Softplus().cuda()
-        score = self.forward(head, tail, rela)
-        score = torch.sum(softplus(-1*label*score))
-        return score
-
-    def init_weight(self):
-        for param in self.parameters():
-            nn.init.xavier_uniform_(param.data)
+        self.n_ent = n_ent
 
     def train_step(self, idx, batch):
         h = batch[:,0]
@@ -76,8 +40,8 @@ class TransEModule(Trainable):
         n_t = n_t.to(h.device)
         n_r = n_r.to(h.device)
         
-        p_loss = self.point_loss(h, t, r, 1)
-        n_loss = self.point_loss(n_h, n_t, n_r, -1)
+        p_loss = self.model.point_loss(h, t, r, 1)
+        n_loss = self.model.point_loss(n_h, n_t, n_r, -1)
 
         loss = p_loss + n_loss
         return loss
@@ -91,7 +55,7 @@ class TransEModule(Trainable):
         heads = self.filter_data[0]
         tails = self.filter_data[1]
 
-        n_ent = self.ent_emb.weight.shape[0]
+        n_ent = self.n_ent
         batch_h = batch[:,0]
         batch_r = batch[:,1]
         batch_t = batch[:,2]
@@ -103,8 +67,8 @@ class TransEModule(Trainable):
         all_val = torch.arange(0, n_ent).unsqueeze(0).expand(batch_size, n_ent)\
         .type(torch.LongTensor).to(batch.device)
 
-        batch_head_scores = self.score(all_val, tail_val, rela_val).data
-        batch_tail_scores = self.score(head_val, all_val, rela_val).data
+        batch_head_scores = self.model.score(all_val, tail_val, rela_val).data
+        batch_tail_scores = self.model.score(head_val, all_val, rela_val).data
         for h, t, r, head_score, tail_score in zip(batch_h, batch_t, batch_r, batch_head_scores, batch_tail_scores):
             h_idx = int(h.data.cpu().numpy())
             t_idx = int(t.data.cpu().numpy())
@@ -155,43 +119,97 @@ class TransEModule(Trainable):
                 'hit@3':hit_tot[1]/count,
                 'hit@10':hit_tot[2]/count,
                 }
+class TransEModule(Trainable):
+    '''
+    Something to notice during training:
+    1. the batch_size of training and validation is different
+    2. order of training data columns may cause some issue
+    '''
+    def __init__(self, n_ent, n_rela, args):
+        super(TransEModule, self).__init__()
+        self.ent_emb = nn.Embedding(n_ent, args['hid_sz'])
+        self.rela_emb = nn.Embedding(n_rela, args['hid_sz'])
+        self.init_weight()
+        self.p = args['p']
 
-# class ComplExModule(nn.Module):
-#     '''copy from NSCachine code'''
-#     def __init__(self, n_ent, n_rel, args):
-#         super(ComplExModule, self).__init__()
+    def forward(self, head, tail, rela):
+        shape = head.size()
+        head = head.contiguous().view(-1)
+        tail = tail.contiguous().view(-1)
+        rela = rela.contiguous().view(-1)
+        head_embed = F.normalize(self.ent_emb(head),2,-1)
+        tail_embed = F.normalize(self.ent_emb(tail),2,-1)
+        rela_embed = self.rela_emb(rela)
+        return torch.norm(tail_embed - head_embed - rela_embed, p=self.p, dim=-1).view(shape)
 
-#         self.ent_re_embed = nn.Embedding(n_ent, args.hidden_dim)
-#         self.ent_im_embed = nn.Embedding(n_ent, args.hidden_dim)
+    def dist(self, head, tail, rela):
+        return self.forward(head, tail, rela)
 
-#         self.rel_re_embed = nn.Embedding(n_rel, args.hidden_dim)
-#         self.rel_im_embed = nn.Embedding(n_rel, args.hidden_dim)
-#         self.init_weight()
+    def score(self, head, tail, rela):
+        return self.forward(head, tail, rela)
 
-#     def forward(self, head, tail, rela):
-#         shapes = head.size()
-#         head = head.contiguous().view(-1)
-#         tail = tail.contiguous().view(-1)
-#         rela = rela.contiguous().view(-1)
+    def prob_logit(self, head, tail, rela):
+        return -self.forward(head, tail, rela) / self.temp
 
-#         head_re_embed = self.ent_re_embed(head)
-#         tail_re_embed = self.ent_re_embed(tail)
-#         rela_re_embed = self.rel_re_embed(rela)
-#         head_im_embed = self.ent_im_embed(head)
-#         tail_im_embed = self.ent_im_embed(tail)
-#         rela_im_embed = self.rel_im_embed(rela)
+    def embed(self, idx):
+        return self.ent_emb(idx)
 
-#         score = torch.sum(rela_re_embed * head_re_embed * tail_re_embed, dim=-1) \
-#                 + torch.sum(rela_re_embed * head_im_embed * tail_im_embed, dim=-1) \
-#                 + torch.sum(rela_im_embed * head_re_embed * tail_im_embed, dim=-1) \
-#                 - torch.sum(rela_im_embed * head_im_embed * tail_re_embed, dim=-1)
-#         return score.view(shapes)
+    def point_loss(self, head, tail, rela, label):
+        softplus = torch.nn.Softplus().cuda()
+        score = self.forward(head, tail, rela)
+        score = torch.sum(softplus(-1*label*score))
+        return score
 
-#     def dist(self, head, tail, rela):
-#         return -self.forward(head, tail, rela)
+    def init_weight(self):
+        for param in self.parameters():
+            nn.init.xavier_uniform_(param.data)
 
-#     def score(self, head, tail, rela):
-#         return -self.forward(head, tail, rela)
+class ComplExModule(nn.Module):
+    '''copy from NSCachine code'''
+    def __init__(self, n_ent, n_rel, args):
+        super(ComplExModule, self).__init__()
 
-#     def prob_logit(self, head, tail, rela):
-#         return self.forward(head, tail, rela)/self.temp
+        self.ent_re_embed = nn.Embedding(n_ent, args['hid_sz'])
+        self.ent_im_embed = nn.Embedding(n_ent, args['hid_sz'])
+
+        self.rel_re_embed = nn.Embedding(n_rel, args['hid_sz'])
+        self.rel_im_embed = nn.Embedding(n_rel, args['hid_sz'])
+        self.init_weight()
+
+    def forward(self, head, tail, rela):
+        shapes = head.size()
+        head = head.contiguous().view(-1)
+        tail = tail.contiguous().view(-1)
+        rela = rela.contiguous().view(-1)
+
+        head_re_embed = self.ent_re_embed(head)
+        tail_re_embed = self.ent_re_embed(tail)
+        rela_re_embed = self.rel_re_embed(rela)
+        head_im_embed = self.ent_im_embed(head)
+        tail_im_embed = self.ent_im_embed(tail)
+        rela_im_embed = self.rel_im_embed(rela)
+
+        score = torch.sum(rela_re_embed * head_re_embed * tail_re_embed, dim=-1) \
+                + torch.sum(rela_re_embed * head_im_embed * tail_im_embed, dim=-1) \
+                + torch.sum(rela_im_embed * head_re_embed * tail_im_embed, dim=-1) \
+                - torch.sum(rela_im_embed * head_im_embed * tail_re_embed, dim=-1)
+        return score.view(shapes)
+
+    def dist(self, head, tail, rela):
+        return -self.forward(head, tail, rela)
+
+    def score(self, head, tail, rela):
+        return -self.forward(head, tail, rela)
+
+    def prob_logit(self, head, tail, rela):
+        return self.forward(head, tail, rela)/self.temp
+
+    def init_weight(self):
+        for param in self.parameters():
+            nn.init.xavier_uniform_(param.data)
+
+    def point_loss(self, head, tail, rela, label):
+        softplus = torch.nn.Softplus().cuda()
+        score = self.forward(head, tail, rela)
+        score = torch.sum(softplus(-1*label*score))
+        return score

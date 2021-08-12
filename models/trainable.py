@@ -1,6 +1,6 @@
 import torch
 
-class Trainable(torch.nn.module):
+class Trainable(torch.nn.Module):
     def train_step(self, idx, batch):
         pass
 

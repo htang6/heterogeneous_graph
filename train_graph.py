@@ -12,7 +12,7 @@ import yaml
 from bern_corrupter import BernCorrupter
 from graph import HeteroGraph
 from data_process import parse_block
-from models import TransEModule, BertEmb, SynoPred
+from models import TransEModule, BertEmb, SynoPred, ComplExModule, ShallowModule
 from samplers import TriRandomSampler, PairRandomSampler
 from trainer import Trainer
 from utils import split_idx, heads_tails, get_logger, load_data, build_graph, get_data
@@ -24,6 +24,7 @@ from utils import split_idx, heads_tails, get_logger, load_data, build_graph, ge
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Parser for Knowledge Graph Embedding")
     parser.add_argument('--config', type=str, default='config/shallow.yaml', help='name of config file')
+    parser.add_argument('--model', type=str, default='ComplEx')
     args = parser.parse_args()
 
     with open(args.config, 'r') as f:
@@ -39,8 +40,10 @@ if __name__ == '__main__':
 
     clist = load_data()
     graph = build_graph(clist)
+    n_ent = len(graph.nodes)
+    n_rela = len(graph.edges)
 
-    sampler = TriRandomSampler(len(graph.nodes), 2)
+    sampler = TriRandomSampler(n_ent, 2)
 
     connects = torch.LongTensor(graph.connects)
     train_idx, eval_idx, test_idx = split_idx(connects.shape[0])
@@ -51,20 +54,25 @@ if __name__ == '__main__':
     head = train_data[:,0]
     rela = train_data[:,1]
     tail = train_data[:,2]
-    corrupter = BernCorrupter([head, tail, rela], len(graph.nodes), len(graph.edges))
+    corrupter = BernCorrupter([head, tail, rela], n_ent, n_rela)
 
     occurrence = heads_tails(graph.connects, len(graph.nodes))
-    transE = TransEModule(len(graph.nodes), len(graph.edges), sampler, corrupter, \
-    occurrence, config['arch'])
 
-    train_dl = DataLoader(train_data, batch_size=256)
+    sampler = TriRandomSampler(n_ent, 2)
+    if args.model == 'TransE':
+        emb_model = TransEModule(n_ent, n_rela, config['arch'])
+    elif args.model == 'ComplEx':
+        enb_model = ComplExModule(n_ent, n_rela, config['arch'])
+    trainable = ShallowModule(n_ent, enb_model, sampler, corrupter, occurrence)
+
+    train_dl = DataLoader(train_data, batch_size=1024)
     eval_dl = DataLoader(eval_data, batch_size=50)
 
-    trainer = Trainer(transE, config['train_conf'], device=device, logger=logger)
+    trainer = Trainer(trainable, config['train_conf'], device=device, logger=logger)
     trainer.fit(train_dl, eval_dl, 0.001)
 
-    torch.save(transE.ent_emb.weight, './results/c_emb.pt')
-
+    # torch.save(trainable.model.ent_emb.weight, './results/c_emb.pt')
+    # TODO: need to find a new way to save 
 
 
     
