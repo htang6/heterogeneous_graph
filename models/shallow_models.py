@@ -164,6 +164,9 @@ class TransEModule(Trainable):
         for param in self.parameters():
             nn.init.xavier_uniform_(param.data)
 
+    def get_state(self):
+        return self.ent_emb.weight
+
 class ComplExModule(nn.Module):
     '''copy from NSCachine code'''
     def __init__(self, n_ent, n_rel, args):
@@ -213,3 +216,6 @@ class ComplExModule(nn.Module):
         score = self.forward(head, tail, rela)
         score = torch.sum(softplus(-1*label*score))
         return score
+
+    def get_state(self):
+        return self.ent_re_embed.weight

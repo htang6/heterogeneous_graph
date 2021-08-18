@@ -65,13 +65,13 @@ if __name__ == '__main__':
         enb_model = ComplExModule(n_ent, n_rela, config['arch'])
     trainable = ShallowModule(n_ent, enb_model, sampler, corrupter, occurrence)
 
-    train_dl = DataLoader(train_data, batch_size=1024)
+    train_dl = DataLoader(train_data, batch_size=config['train_conf']['batch_sz'])
     eval_dl = DataLoader(eval_data, batch_size=50)
 
     trainer = Trainer(trainable, config['train_conf'], device=device, logger=logger)
     trainer.fit(train_dl, eval_dl, 0.001)
 
-    # torch.save(trainable.model.ent_emb.weight, './results/c_emb.pt')
+    torch.save(trainable.model.get_state(), './results/c_emb.pt')
     # TODO: need to find a new way to save 
 
 
