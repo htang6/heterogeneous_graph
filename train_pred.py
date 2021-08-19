@@ -67,10 +67,3 @@ if __name__ == '__main__':
 
     trainer = Trainer(pred_model, config['train_conf'], device=device, logger = logger)
     trainer.fit(train_dl, eval_dl, 0.001)
-
-
-
-
-
-    
-    
