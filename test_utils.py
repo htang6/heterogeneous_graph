@@ -130,12 +130,9 @@ def get_test_data():
     train_data = loader.load_data('train')
     valid_data = loader.load_data('valid')
     test_data  = loader.load_data('test')
-    # First switch the order to [h, r, t], then transpose, and then make is contiguous
-    index = torch.LongTensor([0,2,1])
-    train_data = torch.LongTensor(train_data)[index].transpose(0,1).contiguous()
-    valid_data = torch.LongTensor(valid_data)[index].transpose(0,1).contiguous()
-    test_data = torch.LongTensor(test_data)[index].transpose(0,1).contiguous()
-
+    train_data = torch.LongTensor(train_data).transpose(0,1).contiguous()
+    valid_data = torch.LongTensor(valid_data).transpose(0,1).contiguous()
+    test_data = torch.LongTensor(test_data).transpose(0,1).contiguous()
     return train_data, valid_data, test_data, n_ent, n_rel
 
 if __name__ == '__main__':

@@ -17,9 +17,11 @@ class ShallowModule(Trainable):
 
     def train_step(self, idx, batch):
         h = batch[:,0]
-        r = batch[:,1]
-        t = batch[:,2]
-        h_rand, t_rand = self.sampler.neg_sample(h.shape[0])
+        t = batch[:,1]
+        r = batch[:,2]
+        h_idx = batch[:,3]
+        t_idx = batch[:,4]
+        h_rand, t_rand = self.sampler.neg_sample(h.shape[0], [h, t, r, h_idx, t_idx, self.model])
         prob = self.corrupter.bern_prob[r]
         selection = torch.bernoulli(prob).type(torch.BoolTensor)
         n_h = torch.LongTensor(h.cpu().numpy())
@@ -57,8 +59,8 @@ class ShallowModule(Trainable):
 
         n_ent = self.n_ent
         batch_h = batch[:,0]
-        batch_r = batch[:,1]
-        batch_t = batch[:,2]
+        batch_t = batch[:,1]
+        batch_r = batch[:,2]
         batch_size = batch_h.size(0)
 
         head_val = batch_h.unsqueeze(1).expand(batch_size, n_ent)
@@ -167,7 +169,7 @@ class TransEModule(Trainable):
     def get_state(self):
         return self.ent_emb.weight
 
-class ComplExModule(nn.Module):
+class ComplExModule(Trainable):
     '''copy from NSCachine code'''
     def __init__(self, n_ent, n_rel, args):
         super(ComplExModule, self).__init__()
@@ -177,6 +179,7 @@ class ComplExModule(nn.Module):
 
         self.rel_re_embed = nn.Embedding(n_rel, args['hid_sz'])
         self.rel_im_embed = nn.Embedding(n_rel, args['hid_sz'])
+        self.temp = 2.0 #unknown functionality
         self.init_weight()
 
     def forward(self, head, tail, rela):
@@ -206,6 +209,9 @@ class ComplExModule(nn.Module):
 
     def prob_logit(self, head, tail, rela):
         return self.forward(head, tail, rela)/self.temp
+
+    def prob(self, head, tail, rela):
+        return F.softmax(self.prob_logit(head, tail, rela), dim=-1)
 
     def init_weight(self):
         for param in self.parameters():

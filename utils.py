@@ -7,6 +7,13 @@ import numpy as np
 from graph import HeteroGraph
 from data_process import parse_block
 
+def split_data(all_data):
+    train_idx, eval_idx, test_idx = split_idx(all_data.shape[0], 10, 10)
+    train_data = all_data[train_idx]
+    eval_data = all_data[eval_idx]
+    test_data = all_data[test_idx]
+    return train_data, eval_data, test_data
+
 # Here the scores actually means distance, the smaller is regarded higher ranked.
 def mrr_mr_hitk(scores, target, k=[1,3,10], descend = False):
     _, sorted_idx = torch.sort(scores, descending=descend)
@@ -48,8 +55,8 @@ def heads_tails(conn_list, n_ent):
     if torch.is_tensor(conn_list):
         conn_list = conn_list.data.cpu().numpy()
     all_heads = [conn[0] for conn in conn_list]
-    all_relas = [conn[1] for conn in conn_list]
-    all_tails = [conn[2] for conn in conn_list]
+    all_tails = [conn[1] for conn in conn_list]
+    all_relas = [conn[2] for conn in conn_list]
 
     heads = defaultdict(lambda: set())
     tails = defaultdict(lambda: set())
@@ -99,33 +106,47 @@ def load_data():
 
     return cinfo_list
 
+# The target is to have a list of phrases of relations and a list of concept and phrases
 def build_graph(clist):
     ent2idx = {}
     rela2idx = {'is_a':0, 'disjoint_from':1}
+    ent_list = []
+    rela_list_raw = ['is_a', 'disjoint_from']
 
-    for idx, c in enumerate(clist):
-        ent2idx[c['cid']] = idx
-
+    #Here we build the rela_list
     for c in clist:
-        for relation in c['main_relations']:
+        for relation in c['main_relations'] + c['other_relations']:
             if relation[0] not in rela2idx:
                 rela2idx[relation[0]] = len(rela2idx)
-
-    ent_list = []
-    rela_list = ['is_a', 'disjoint_from']
-    connections = []
-
+                rela_list_raw.append(relation[0])
+    rela2p = {}
     for c in clist:
         if c['cid'] in rela2idx:
-            rela_list.append(c)
-        elif c['cid'] in ent2idx:
+            rela2p[c['cid']] = c
+    rela_list = []
+    for rela in rela_list_raw:
+        if ':' in rela:
+            rela_list.append(rela2p[rela])
+        else:
+            rela_list.append(rela)
+
+    #Here we build the ent_list
+    for c in clist:
+        if c['cid'] not in rela2idx:
+            ent2idx[c['cid']] = len(ent2idx)
             ent_list.append(c)
-        for relation in c['main_relations']:
+
+    #Here we build the connections
+    connections = []
+    for c in clist:
+        for relation in c['main_relations'] + c['other_relations']:
+            if relation[1] not in ent2idx or c['cid'] not in ent2idx:
+                continue
             h = ent2idx[c['cid']]
             r = rela2idx[relation[0]]
             t = ent2idx[relation[1]]
-            connections.append([h, r, t])
-    
+            connections.append([h, t, r])
+
     return HeteroGraph(ent_list, rela_list, connections, ent2idx)
 
 def get_data(graph):
@@ -148,3 +169,39 @@ def get_data(graph):
             pos_pairs.append([p2idx[phrase] ,c2idx[ent['cid']]])
 
     return plist, pos_pairs
+
+def get_cache_list(train_head, train_tail, train_rela, n_ent, n_sample):
+    head_cache = {}
+    tail_cache = {}
+    head_pos = []
+    tail_pos = []
+    head_idx = []
+    tail_idx = []
+    count_h = 0
+    count_t = 0
+    for h, t, r in zip(train_head, train_tail, train_rela):
+        if not (t,r) in head_cache:
+            head_cache[(t,r)] = count_h
+            head_pos.append([h])
+            count_h += 1
+        else:
+            head_pos[head_cache[(t,r)]].append(h)
+
+        if not (h,r) in tail_cache:
+            tail_cache[(h,r)] = count_t
+            tail_pos.append([t])
+            count_t += 1
+        else:
+            tail_pos[tail_cache[(h,r)]].append(t)
+
+        head_idx.append(head_cache[(t,r)])
+        tail_idx.append(tail_cache[(h,r)])
+    head_idx = np.array(head_idx, dtype=int)
+    tail_idx = np.array(tail_idx, dtype=int)
+    head_cache = np.random.randint(low=0, high=n_ent, size=(count_h, n_sample))
+    tail_cache = np.random.randint(low=0, high=n_ent, size=(count_t, n_sample))
+    print('head/tail_idx: head/tail_cache', len(head_idx), len(tail_idx), head_cache.shape, tail_cache.shape, len(head_pos), len(tail_pos))
+    ''' The each row of head_cache contains n1 random sample of a (r,t) pairs. each row of
+    head pos contains all the postive head of a (r,t) pairs in train data. And I believe
+    head_idx is and tail index map each training data to the cache'''
+    return head_idx, tail_idx, head_cache, tail_cache, head_pos, tail_pos
