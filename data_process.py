@@ -54,7 +54,7 @@ def parse_syno(block):
     return exact_list, related_list
 
 def parse_relation(block):
-    rela_regx = 'relationship: (.*) (.*) \!'
+    rela_regx = 'relationship: ([^ ]*) ([^ ]*) .*'
     match_rela_list = re.findall(rela_regx, block)
     result = []
     for rela in match_rela_list:
