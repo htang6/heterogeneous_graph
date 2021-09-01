@@ -1,24 +1,14 @@
-from collections import defaultdict
 import argparse
-from os import getloadavg
-from platform import node
 
 import torch
-from torch.utils.data import TensorDataset
 from torch.utils.data.dataloader import DataLoader
 from transformers import BertTokenizer, AutoModel
 import yaml
 
-from bern_corrupter import BernCorrupter
-from graph import HeteroGraph
-from data_process import parse_block
-from models import TransEModule, BertEmb, SynoPred
-from samplers import TriRandomSampler, PairRandomSampler
+from models import BertEmb, SynoPred
+from samplers import PairRandomSampler
 from trainer import Trainer
-from utils import split_idx, heads_tails, get_logger, load_data, build_graph, get_data
-
-
-
+from utils import split_idx, get_logger, load_data, build_graph, get_data
 
 
 if __name__ == '__main__':
