@@ -161,7 +161,7 @@ def get_data(graph):
     for i, p in enumerate(plist):
         p2idx[p] = i
 
-    c2idx = graph.node2idx
+    c2idx = graph.ent2idx
 
     pos_pairs = []
     for ent in graph.nodes:

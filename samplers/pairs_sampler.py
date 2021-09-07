@@ -1,5 +1,4 @@
 import random
-import torch
 import numpy as np
 
 class PairRandomSampler():
@@ -16,5 +15,4 @@ class PairRandomSampler():
             sample_idx_list = random.sample(candidates, self.sample_sz)
             for sample_idx in sample_idx_list:
                 negative_list.append([pid, sample_idx])
-        
         return np.asarray(negative_list)
