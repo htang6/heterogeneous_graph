@@ -64,7 +64,7 @@ class Propogator(nn.Module):
         return output
 
 
-class GGNN(Trainable):
+class GGNN(nn.Module):
     """
     Gated Graph Sequence Neural Networks (GGNN)
     Mode: SelectNode
@@ -116,14 +116,10 @@ class GGNN(Trainable):
 
         return prop_state
 
-class HGGNN(Trainable):
-    def __init__(self, ggnn, p_emb, g_emb, adj, sampler, c_num) -> None:
+class HGGNN(nn.Module):
+    def __init__(self, ggnn, g_emb, adj) -> None:
         super().__init__()
         self.ggnn = ggnn
-        self.c_num = c_num
-        self.sampler = sampler
-        self.test_g_emb = None
-        self.register_buffer('p_emb', p_emb)
         self.register_buffer('g_emb', g_emb)
         self.register_buffer('forward_adj', adj[0])
         self.register_buffer('backward_adj', adj[1])
@@ -133,70 +129,3 @@ class HGGNN(Trainable):
         return g_emb[idx]
 
     # the first column is the phrase id and second column is the concept id
-    def train_step(self, idx, pos_pairs):
-        device = pos_pairs.device
-        neg_pairs = self.sampler.sample(pos_pairs)
-        neg_pairs = torch.LongTensor(neg_pairs).to(device)
-        pos_label = torch.ones(pos_pairs.shape[0], device=device)
-        neg_label = torch.ones(neg_pairs.shape[0], device=device) * (-1)
-        pairs = torch.cat([pos_pairs, neg_pairs], dim=0)
-        labels = torch.cat([pos_label, neg_label], dim=0)
-        
-        
-        g_emb = self(pairs[:,1])
-        p_emb = self.p_emb[pairs[:,0]]
-        score = self.dist_score(g_emb, p_emb)
-        loss = torch.matmul(score, labels)
-        return loss
-
-    def dist_score(self, g_emb, p_emb):
-        return torch.norm(g_emb-p_emb, dim=-1)
-
-    def eval_pre(self):
-        self.test_g_emb = self.ggnn(self.g_emb, [self.forward_adj, self.backward_adj])
-
-    def eval_step(self, idx, batch):
-        p_idx = torch.unsqueeze(batch[:, 0], dim=1)
-        labels = batch[:, 1]
-        p_exp = p_idx.expand((batch.shape[0], self.c_num))
-        c_exp = torch.arange(0, self.c_num).expand((batch.shape[0], self.c_num))
-        g_emb = self.test_g_emb[c_exp]
-        p_emb = self.p_emb[p_exp]
-        scores = self.dist_score(g_emb, p_emb)
-
-        mrr_tot = 0
-        mr_tot = 0
-        hit_tot = np.zeros((3,))
-        count = 0
-        for score, label in zip(scores, labels):
-            mrr, mr, hit = mrr_mr_hitk(score, label)
-            mrr_tot += mrr
-            mr_tot += mr
-            hit_tot += hit
-            count += 1
-
-        return {'mrr':float(mrr_tot),
-                'mr':mr_tot,
-                'hit':hit_tot,
-                'count':count
-                }
-
-    def eval_sum(self, result_list):
-        mrr_tot = 0.
-        mr_tot = 0
-        hit_tot = np.zeros((3,))
-        count = 0
-        for result in result_list:
-            mrr_tot += result['mrr']
-            mr_tot += result['mr']
-            hit_tot += result['hit']
-            count += result['count']
-            
-        return {'mrr':float(mrr_tot)/count,
-                'mr':mr_tot/count,
-                'hit@1':hit_tot[0]/count,
-                'hit@3':hit_tot[1]/count,
-                'hit@10':hit_tot[2]/count,
-                }
-        
-        

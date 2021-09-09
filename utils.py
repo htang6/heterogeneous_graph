@@ -14,8 +14,10 @@ def split_data(all_data):
     test_data = all_data[test_idx]
     return train_data, eval_data, test_data
 
-# Here the scores actually means distance, the smaller is regarded higher ranked.
 def mrr_mr_hitk(scores, target, k=[1,3,10], descend = False):
+    '''
+    if descend==False, smaller score means closer, else higher score means closer
+    '''
     _, sorted_idx = torch.sort(scores, descending=descend)
     find_target = sorted_idx == target
     target_rank = torch.nonzero(find_target)[0, 0] + 1
