@@ -19,6 +19,8 @@ if __name__ == '__main__':
     with open(args.config, 'r') as f:
         config = yaml.load(f)
 
+    print(config)
+
     if torch.cuda.is_available():
         device = torch.device('cuda')
     else:
@@ -34,7 +36,7 @@ if __name__ == '__main__':
     with open('data/pc_pairs', 'rb') as f:
         pairs = pickle.load(f)
     adj_mat = levi_graph.get_adj()
-    pair_sampler = PairRandomSampler(levi_graph.c_num, 2)
+    pair_sampler = PairRandomSampler(levi_graph.c_num, 4)
 
     if args.arch == 1:
         l_model = StaticEmb(phrase_emb)
@@ -44,18 +46,21 @@ if __name__ == '__main__':
         l_model = StaticEmb(phrase_emb)
         r_model = StaticEmb(graph_emb)
 
+    emb_sz = config['arch']['emb_sz']
     input_sz = graph_emb.shape[1] + phrase_emb.shape[1]
-    scorer = FCNet(*[input_sz, 512, 512, 2])
+    scorer = FCNet(*[input_sz, emb_sz, emb_sz, 2])
     model = MatchingNet(scorer, l_model, r_model, pair_sampler, levi_graph.c_num)
 
     pairs = torch.LongTensor(pairs)
-    train_idx, eval_idx, test_idx = split_idx(pairs.shape[0])
+    train_idx, eval_idx, test_idx = split_idx(pairs.shape[0], 5, 20)
     train_pairs = pairs[train_idx]
     eval_pairs = pairs[eval_idx]
     test_pairs = pairs[test_idx]
 
-    train_dl = DataLoader(train_pairs, batch_size=1024)
-    eval_dl = DataLoader(eval_pairs[:32], batch_size=1024)
+    b_sz = config['train_conf']['batch_sz']
+    lr = config['train_conf']['lr']
+    train_dl = DataLoader(train_pairs, batch_size=b_sz)
+    eval_dl = DataLoader(eval_pairs, batch_size=32)
 
-    trainer = Trainer(model, config['train_conf'], device=device, logger = logger)
-    trainer.fit(train_dl, eval_dl, 0.001)
+    trainer = Trainer(model, config['train_conf'], device=device, logger=logger)
+    trainer.fit(train_dl, eval_dl, lr)
