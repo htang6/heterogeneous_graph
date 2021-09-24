@@ -12,9 +12,7 @@ class HeteroGraph():
         self.ent2idx = ent2idx
 
     def get_nodes_phrase(self):
-        p_list = []
-        for node in self.nodes:
-            p_list.append(node['name'])
+        p_list = [node['name'] for node in self.nodes]
         return  p_list
 
     def get_rela_phrase(self):
@@ -28,29 +26,36 @@ class HeteroGraph():
             p_list.append(p)
         return p_list
 
-class LeviGraph():
-    def __init__(self, hgraph) -> None:
-        self.allphrase, self.levi_nodes, self.levi_edges, self.c_num = self.transform(hgraph)
+    def get_simple_graph(self):
+        all_phrases = [node['name'] for node in self.nodes]
+        simple_nodes = [i for i in range(len(all_phrases))]
+        simple_edges = [[con[0], con[1]] for con in self.connects]
 
-    def transform(self, hgraph):
-        nodes = hgraph.nodes
-        edges = hgraph.edges
-        connects = hgraph.connects
-        nodes_phrase = self.get_nodes_phrase(nodes)
-        rela_phrase = self.get_rela_phrase(edges)
+        return LeviGraph(all_phrases, simple_nodes, simple_edges, len(simple_nodes))
+
+    def get_levi_graph(self):
+        nodes_phrase = self.get_nodes_phrase()
+        rela_phrase = self.get_rela_phrase()
         all_phrase = nodes_phrase + rela_phrase
-        node_num = len(nodes)
+        node_num = len(self.nodes)
 
-        levi_nodes = [i for i in range(len(nodes))]
+        levi_nodes = [i for i in range(node_num)]
         levi_edge = []
-        for connect in connects:
+        for connect in self.connects:
             origin_idx = connect[2] + node_num #TODO VERIFY THE DATA ORDER IN CONNECT
             cur_idx = len(levi_nodes)
             levi_nodes.append(origin_idx)
             levi_edge.append([connect[0], cur_idx])
             levi_edge.append([cur_idx, connect[1]])
 
-        return all_phrase, levi_nodes, levi_edge, len(hgraph.nodes)
+        return LeviGraph(all_phrase, levi_nodes, levi_edge, len(self.nodes))
+
+class LeviGraph():
+    def __init__(self, phrases, nodes, edges, c_num) -> None:
+        self.allphrase = phrases
+        self.levi_nodes = nodes
+        self.levi_edges = edges
+        self.c_num = c_num
 
     def get_adj(self, ):
         sz = len(self.levi_nodes)
@@ -69,20 +74,3 @@ class LeviGraph():
 
         result = [adj, adj_back]
         return result
-
-    def get_nodes_phrase(self, nodes):
-        p_list = []
-        for node in nodes:
-            p_list.append(node['name'])
-        return  p_list
-
-    def get_rela_phrase(self, edges):
-        p_list = []
-        for edge in edges:
-            if isinstance(edge, dict):
-                p = edge['name']
-            else:
-                p = edge
-            p = p.replace('_', ' ')
-            p_list.append(p)
-        return p_list  

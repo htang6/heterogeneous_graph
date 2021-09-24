@@ -1,11 +1,11 @@
 import pickle
 from tqdm import tqdm
+import argparse
 
 import torch
 from transformers import BertTokenizer, AutoModel
 
-from graph import LeviGraph
-from utils import get_logger, load_data, build_graph, get_data
+from utils import get_logger, load_data, build_graph, get_data, phrase_preprocess
 
 def bert_emb(tokenizer, bert, phrase_list, device):
     all_emb = []
@@ -29,6 +29,9 @@ def bert_emb(tokenizer, bert, phrase_list, device):
     return result
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="Parser for Knowledge Graph Embedding")
+    parser.add_argument('--graph_type', type=int, default=1, help='the architecture of the model')
+    args = parser.parse_args()
     if torch.cuda.is_available():
         device = torch.device('cuda')
     else:
@@ -38,28 +41,34 @@ if __name__ == '__main__':
     logger = get_logger('train')
 
     clist = load_data()
-    graph = build_graph(clist)
+    h_graph = build_graph(clist)
 
-    # We then train binary classification model to match concept and phrase
     tokenizer = BertTokenizer.from_pretrained("dmis-lab/biobert-base-cased-v1.2")
     bert = AutoModel.from_pretrained("dmis-lab/biobert-base-cased-v1.2")
 
-    phrases, pairs = get_data(graph)
-    levi_graph = LeviGraph(graph)
-    graph_phrase = levi_graph.allphrase
+    phrases, pairs = get_data(h_graph)
+    if args.graph_type == 1:
+        print('generate levi graph...')
+        graph = h_graph.get_levi_graph()
+    elif args.graph_type == 2:
+        print('generate simple graph...')
+        graph = h_graph.get_simple_graph()
+    graph_phrase = graph.allphrase
 
-    adj_mat = levi_graph.get_adj()
+    graph_phrase = phrase_preprocess(graph_phrase)
+    phrases = phrase_preprocess(phrases)
+    
     print('start generate bert embeddings...')
     bert.to(device)
     phrase_emb = bert_emb(tokenizer, bert, phrases, device)
     graph_emb = bert_emb(tokenizer, bert, graph_phrase, device)
-    graph_emb = graph_emb[levi_graph.levi_nodes]
+    graph_emb = graph_emb[graph.levi_nodes]
     print('end generate bert embeddings')
 
     torch.save(graph_emb.cpu(), 'data/graph_emb.pt')
     torch.save(phrase_emb.cpu(), 'data/phrase_emb.pt')
     with open('data/levi_graph', 'wb') as f:
-        pickle.dump(levi_graph, f)
+        pickle.dump(graph, f)
     with open('data/pc_pairs', 'wb') as f:
         pickle.dump(pairs, f)
 
