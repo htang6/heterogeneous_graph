@@ -1,5 +1,7 @@
 from collections import defaultdict
 import logging
+from string import punctuation
+import re
 
 import torch
 import numpy as np
@@ -207,3 +209,14 @@ def get_cache_list(train_head, train_tail, train_rela, n_ent, n_sample):
     head pos contains all the postive head of a (r,t) pairs in train data. And I believe
     head_idx is and tail index map each training data to the cache'''
     return head_idx, tail_idx, head_cache, tail_cache, head_pos, tail_pos
+
+def phrase_preprocess(phrase_list):
+    processed_list = []
+    rmv_puncts_regex = re.compile(r'[\s{}]+'.format(re.escape(punctuation)))
+    for phrase in phrase_list:
+        phrase = phrase.lower()
+        phrase = rmv_puncts_regex.split(phrase)
+        phrase = ' '.join(phrase).strip()
+        processed_list.append(phrase)
+    
+    return processed_list
