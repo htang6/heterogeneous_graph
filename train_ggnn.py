@@ -6,7 +6,7 @@ from torch.utils.data.dataloader import DataLoader
 import yaml
 
 from models import HGGNN, GGNN, MatchingNet, StaticEmb, FCNet
-from samplers import PairRandomSampler
+from samplers import PairRandomSampler, PairCacheSampler, pairs_sampler
 from trainer import Trainer
 from utils import split_idx, get_logger
 
@@ -14,6 +14,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Parser for Knowledge Graph Embedding")
     parser.add_argument('--config', type=str, default='config/ggnn.yaml', help='name of config file')
     parser.add_argument('--arch', type=int, default=1, help='the architecture of the model')
+    parser.add_argument('--sampler', type=str, default='cache', help='which sampelr to use')
     args = parser.parse_args()
 
     with open(args.config, 'r') as f:
@@ -36,7 +37,17 @@ if __name__ == '__main__':
     with open('data/pc_pairs', 'rb') as f:
         pairs = pickle.load(f)
     adj_mat = levi_graph.get_adj()
-    pair_sampler = PairRandomSampler(levi_graph.c_num, 4)
+
+    pairs = torch.LongTensor(pairs)
+    train_idx, eval_idx, test_idx = split_idx(pairs.shape[0], 5, 20)
+    train_pairs = pairs[train_idx]
+    eval_pairs = pairs[eval_idx]
+    test_pairs = pairs[test_idx]
+
+    if args.sampler == 'random':
+        pair_sampler = PairRandomSampler(levi_graph.c_num, 4)
+    elif args.sampler == 'cache':
+        pair_sampler = PairCacheSampler(4, phrase_emb.shape[0], levi_graph.c_num, train_pairs)
 
     if args.arch == 1:
         l_model = StaticEmb(phrase_emb)
@@ -51,11 +62,8 @@ if __name__ == '__main__':
     scorer = FCNet(*[input_sz, emb_sz, emb_sz, 2])
     model = MatchingNet(scorer, l_model, r_model, pair_sampler, levi_graph.c_num)
 
-    pairs = torch.LongTensor(pairs)
-    train_idx, eval_idx, test_idx = split_idx(pairs.shape[0], 5, 20)
-    train_pairs = pairs[train_idx]
-    eval_pairs = pairs[eval_idx]
-    test_pairs = pairs[test_idx]
+    if args.sampler == 'cache':
+        pair_sampler.model = model
 
     b_sz = config['train_conf']['batch_sz']
     lr = config['train_conf']['lr']
