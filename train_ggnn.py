@@ -15,6 +15,7 @@ if __name__ == '__main__':
     parser.add_argument('--config', type=str, default='config/ggnn.yaml', help='name of config file')
     parser.add_argument('--arch', type=int, default=1, help='the architecture of the model')
     parser.add_argument('--sampler', type=str, default='cache', help='which sampelr to use')
+    parser.add_argument('--data', type=str, default='simple_graph', help = 'levi_graph, simple_graph')
     args = parser.parse_args()
 
     with open(args.config, 'r') as f:
@@ -30,11 +31,13 @@ if __name__ == '__main__':
 
     logger = get_logger('train')
 
-    graph_emb = torch.load('data/graph_emb.pt')
-    phrase_emb = torch.load('data/phrase_emb.pt')
-    with open('data/levi_graph', 'rb') as f:
+    DATA_FOLDER = args.data
+    FULL_DIR = 'data/'+ DATA_FOLDER + '/'
+    graph_emb = torch.load(FULL_DIR + 'graph_emb.pt')
+    phrase_emb = torch.load(FULL_DIR + 'phrase_emb.pt')
+    with open(FULL_DIR + 'graph', 'rb') as f:
         levi_graph = pickle.load(f)
-    with open('data/pc_pairs', 'rb') as f:
+    with open(FULL_DIR + 'pc_pairs', 'rb') as f:
         pairs = pickle.load(f)
     adj_mat = levi_graph.get_adj()
 

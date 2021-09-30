@@ -1,4 +1,5 @@
 import pickle
+import os
 from tqdm import tqdm
 import argparse
 
@@ -47,16 +48,20 @@ if __name__ == '__main__':
     bert = AutoModel.from_pretrained("dmis-lab/biobert-base-cased-v1.2")
 
     phrases, pairs = get_data(h_graph)
+    FOLDER_NAME = ''
     if args.graph_type == 1:
         print('generate levi graph...')
         graph = h_graph.get_levi_graph()
+        FOLDER_NAME = 'levi_graph'
     elif args.graph_type == 2:
         print('generate simple graph...')
         graph = h_graph.get_simple_graph()
+        FOLDER_NAME = 'simple_graph'
     graph_phrase = graph.allphrase
 
-    graph_phrase = phrase_preprocess(graph_phrase)
-    phrases = phrase_preprocess(phrases)
+    # Based on some experiment of tokenizer of bert, this process have little effect
+    # graph_phrase = phrase_preprocess(graph_phrase)
+    # phrases = phrase_preprocess(phrases)
     
     print('start generate bert embeddings...')
     bert.to(device)
@@ -65,11 +70,12 @@ if __name__ == '__main__':
     graph_emb = graph_emb[graph.levi_nodes]
     print('end generate bert embeddings')
 
-    torch.save(graph_emb.cpu(), 'data/graph_emb.pt')
-    torch.save(phrase_emb.cpu(), 'data/phrase_emb.pt')
-    with open('data/levi_graph', 'wb') as f:
+    SAVING_DIR = 'data/' + FOLDER_NAME + '/'
+    torch.save(graph_emb.cpu(), SAVING_DIR + 'graph_emb.pt')
+    torch.save(phrase_emb.cpu(), SAVING_DIR + 'phrase_emb.pt')
+    with open(SAVING_DIR + 'graph', 'wb') as f:
         pickle.dump(graph, f)
-    with open('data/pc_pairs', 'wb') as f:
+    with open(SAVING_DIR + 'pc_pairs', 'wb') as f:
         pickle.dump(pairs, f)
 
 
