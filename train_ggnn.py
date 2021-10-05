@@ -5,8 +5,8 @@ import torch
 from torch.utils.data.dataloader import DataLoader
 import yaml
 
-from models import HGGNN, GGNN, MatchingNet, StaticEmb, FCNet
-from samplers import PairRandomSampler, PairCacheSampler, pairs_sampler
+from models import HGGNN, GGNN, MatchingNet, StaticEmb, FCNet, SageWrapper
+from samplers import PairRandomSampler, PairCacheSampler
 from trainer import Trainer
 from utils import split_idx, get_logger
 
@@ -41,6 +41,12 @@ if __name__ == '__main__':
         pairs = pickle.load(f)
     adj_mat = levi_graph.get_adj()
 
+    print('***************Data Info**************')
+    print('Total phrases: ', phrase_emb.shape[0])
+    print('Total graph nodes: ', len(levi_graph.levi_nodes))
+    print('Total graph edges: ', len(levi_graph.levi_edges))
+    print('**************************************')
+
     pairs = torch.LongTensor(pairs)
     train_idx, eval_idx, test_idx = split_idx(pairs.shape[0], 5, 20)
     train_pairs = pairs[train_idx]
@@ -59,6 +65,10 @@ if __name__ == '__main__':
     elif args.arch == 2:
         l_model = StaticEmb(phrase_emb)
         r_model = StaticEmb(graph_emb)
+    elif args.arch == 3:
+        l_model = StaticEmb(phrase_emb)
+        feat_dim = graph_emb.shape[1]
+        r_model = SageWrapper(2, feat_dim, feat_dim, graph_emb, levi_graph.levi_edges)
 
     emb_sz = config['arch']['emb_sz']
     input_sz = graph_emb.shape[1] + phrase_emb.shape[1]
