@@ -59,13 +59,16 @@ if __name__ == '__main__':
         pair_sampler = PairCacheSampler(4, phrase_emb.shape[0], levi_graph.c_num, train_pairs)
 
     if args.arch == 1:
+        print("Arch: Static Bert embedding + GGNN")
         l_model = StaticEmb(phrase_emb)
         ggnn = GGNN(state_dim = graph_emb.shape[1], n_edge_types=1, n_node=graph_emb.shape[0], n_steps=5)
         r_model = HGGNN(ggnn, graph_emb, adj_mat)
     elif args.arch == 2:
+        print("Arch: Static Bert embedding * 2")
         l_model = StaticEmb(phrase_emb)
         r_model = StaticEmb(graph_emb)
     elif args.arch == 3:
+        print('Arch: Static Bert embedding + graphSage')
         l_model = StaticEmb(phrase_emb)
         feat_dim = graph_emb.shape[1]
         r_model = SageWrapper(2, feat_dim, feat_dim, graph_emb, levi_graph.levi_edges)
