@@ -4,8 +4,9 @@ import pickle
 import torch
 from torch.utils.data.dataloader import DataLoader
 import yaml
+from transformers import BertTokenizer, AutoModel
 
-from models import HGGNN, GGNN, MatchingNet, StaticEmb, FCNet, SageWrapper
+from models import HGGNN, GGNN, MatchingNet, StaticEmb, FCNet, SageWrapper, BertEmb
 from samplers import PairRandomSampler, PairCacheSampler
 from trainer import Trainer
 from utils import split_idx, get_logger
@@ -19,7 +20,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     with open(args.config, 'r') as f:
-        config = yaml.load(f)
+        config = yaml.load(f, Loader=yaml.FullLoader)
 
     print(config)
 
@@ -41,6 +42,10 @@ if __name__ == '__main__':
         pairs = pickle.load(f)
     adj_mat = levi_graph.get_adj()
 
+    graph_phrases = [levi_graph.allphrase[idx] for idx in levi_graph.levi_nodes]
+    with open(FULL_DIR + 'phrases', 'rb') as f:
+        phrases = pickle.load(f)
+
     print('***************Data Info**************')
     print('Total phrases: ', phrase_emb.shape[0])
     print('Total graph nodes: ', len(levi_graph.levi_nodes))
@@ -58,6 +63,7 @@ if __name__ == '__main__':
     elif args.sampler == 'cache':
         pair_sampler = PairCacheSampler(4, phrase_emb.shape[0], levi_graph.c_num, train_pairs)
 
+    acc_num = 1
     if args.arch == 1:
         print("Arch: Static Bert embedding + GGNN")
         l_model = StaticEmb(phrase_emb)
@@ -72,6 +78,13 @@ if __name__ == '__main__':
         l_model = StaticEmb(phrase_emb)
         feat_dim = graph_emb.shape[1]
         r_model = SageWrapper(2, feat_dim, feat_dim, graph_emb, levi_graph.levi_edges)
+    elif args.arch == 4:
+        print('Arch: Bert Model * 2')
+        tokenizer = BertTokenizer.from_pretrained("dmis-lab/biobert-base-cased-v1.2")
+        bert = AutoModel.from_pretrained("dmis-lab/biobert-base-cased-v1.2")
+        l_model = BertEmb(tokenizer, bert, phrases)
+        r_model = BertEmb(tokenizer, bert, graph_phrases)
+        acc_num = 8
 
     emb_sz = config['arch']['emb_sz']
     input_sz = graph_emb.shape[1] + phrase_emb.shape[1]
@@ -86,5 +99,5 @@ if __name__ == '__main__':
     train_dl = DataLoader(train_pairs, batch_size=b_sz)
     eval_dl = DataLoader(eval_pairs, batch_size=32)
 
-    trainer = Trainer(model, config['train_conf'], device=device, logger=logger)
+    trainer = Trainer(model, config['train_conf'], device=device, logger=logger, acc_num=acc_num)
     trainer.fit(train_dl, eval_dl, lr)
