@@ -5,3 +5,4 @@ from .ggnn import HGGNN, GGNN
 from .matching_net import MatchingNet
 from .static_emb import StaticEmb
 from .fc_net import FCNet
+from .graph_sage import SageWrapper

@@ -82,7 +82,7 @@ class GraphSage(nn.Module):
 
         self.adj_lists = adj_lists
 
-        setattr(self, 'raw_features', raw_features)
+        self.register_buffer('raw_features', raw_features)
 
         for index in range(1, num_layers+1):
             layer_size = out_size if index != 1 else input_size
